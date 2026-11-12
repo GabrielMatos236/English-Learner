@@ -100,7 +100,7 @@ export default function Practice() {
           <div className="bigEmoji">🔐</div>
           <h2>Practice ainda trancado</h2>
           <p className="muted">
-            Faça o teste primeiro neste aparelho, ou abra o link de prática que o seu professor te mandou.
+            Faz o teste primeiro, tá com ansiedade???
           </p>
           <Link to="/teste" className="button primary">Fazer o teste</Link>
         </div>
@@ -151,8 +151,8 @@ export default function Practice() {
           <>
             <h1>Hi, {firstName}! 👋</h1>
             <p className="muted">
-              Seu nível: <strong>{info.level}</strong>. A IA vai criar 5 exercícios
-              {info.isPreview ? ' pra você já ir conhecendo o primeiro assunto das aulas:' : ' sobre o que você já aprendeu:'}
+              Seu nível: <strong>{info.level}</strong>. 5 exercícios vão ser criados
+              {info.isPreview ? ' pra você já ir treinando o assunto das aulas:' : ' sobre o que você já aprendeu:'}
             </p>
           </>
         )}

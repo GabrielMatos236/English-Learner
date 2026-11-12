@@ -13,12 +13,12 @@ export default function StudentHub() {
 
       <div className="entryGrid">
         <Link to="/teste" className="entryCard">
-          <span className="entryIcon">🧪</span>
+          <span className="entryIcon"></span>
           <strong>Test your Knowledge</strong>
           <span className="muted">Pra eu saber se tu é burra ou inteligente!! (15–25 minutos)</span>
         </Link>
         <Link to="/pratica" className="entryCard">
-          <span className="entryIcon">🏋️</span>
+          <span className="entryIcon"></span>
           <strong>Practice</strong>
           <span className="muted">
             {hasStudentId
