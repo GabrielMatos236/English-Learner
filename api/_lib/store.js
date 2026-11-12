@@ -8,20 +8,55 @@
 
 import { Redis } from '@upstash/redis'
 
-const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL
-const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
+// A integração da Vercel pode criar as variáveis com prefixo (ex.: STORAGE_KV_REST_API_URL),
+// então aceitamos o nome puro ou qualquer um terminando em _<nome>.
+function findEnv(names) {
+  for (const name of names) {
+    if (process.env[name]) return process.env[name]
+  }
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value && names.some((name) => key.endsWith(`_${name}`))) return value
+  }
+  return undefined
+}
+
+const url = findEnv(['KV_REST_API_URL', 'UPSTASH_REDIS_REST_URL'])
+const token = findEnv(['KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_TOKEN'])
 
 const redis = url && token ? new Redis({ url, token }) : null
+export const isRedisConfigured = Boolean(redis)
+
+// Na Vercel cada função roda separada, então memória NÃO serve: o teste salvaria numa função
+// e o Practice procuraria em outra. Lá, sem Redis, é erro com mensagem clara.
+const isOnVercel = Boolean(process.env.VERCEL)
 
 if (!redis) {
-  console.warn('[store] Redis não configurado: usando memória (os dados somem ao reiniciar).')
+  console.warn(
+    isOnVercel
+      ? '[store] Redis não configurado na Vercel! Conecte o Upstash Redis ao projeto e faça redeploy.'
+      : '[store] Redis não configurado: usando memória (os dados somem ao reiniciar).'
+  )
+}
+
+export class StoreNotConfiguredError extends Error {
+  constructor() {
+    super('Banco de dados não configurado: conecte o Upstash Redis ao projeto na Vercel e faça redeploy.')
+    this.expose = true
+  }
+}
+
+// true = usar memória (dev local); lança erro se estiver na Vercel sem Redis.
+function useMemory() {
+  if (redis) return false
+  if (isOnVercel) throw new StoreNotConfiguredError()
+  return true
 }
 
 const memoryStore = globalThis.__placementMemoryStore ?? new Map()
 globalThis.__placementMemoryStore = memoryStore
 
 export async function saveResult(result) {
-  if (!redis) {
+  if (useMemory()) {
     memoryStore.set(result.id, result)
     return
   }
@@ -30,7 +65,7 @@ export async function saveResult(result) {
 }
 
 export async function listResults() {
-  if (!redis) {
+  if (useMemory()) {
     return [...memoryStore.values()].sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
   }
   const ids = await redis.zrange('results', 0, -1, { rev: true })
@@ -40,7 +75,7 @@ export async function listResults() {
 }
 
 export async function deleteResult(id) {
-  if (!redis) {
+  if (useMemory()) {
     memoryStore.delete(id)
     return
   }
@@ -49,7 +84,7 @@ export async function deleteResult(id) {
 }
 
 export async function getResult(id) {
-  if (!redis) return memoryStore.get(id) ?? null
+  if (useMemory()) return memoryStore.get(id) ?? null
   return (await redis.get(`result:${id}`)) ?? null
 }
 
@@ -59,7 +94,7 @@ export async function updateResult(id, updater) {
   const current = await getResult(id)
   if (!current) return null
   const updated = updater(structuredClone(current))
-  if (!redis) memoryStore.set(id, updated)
+  if (useMemory()) memoryStore.set(id, updated)
   else await redis.set(`result:${id}`, updated)
   return updated
 }
@@ -70,7 +105,7 @@ const memoryCooldowns = globalThis.__placementCooldowns ?? new Map()
 globalThis.__placementCooldowns = memoryCooldowns
 
 export async function acquireCooldown(key, seconds) {
-  if (!redis) {
+  if (useMemory()) {
     const until = memoryCooldowns.get(key) ?? 0
     if (until > Date.now()) return false
     memoryCooldowns.set(key, Date.now() + seconds * 1000)
