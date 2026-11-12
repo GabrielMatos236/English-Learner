@@ -40,9 +40,16 @@ export default function Practice() {
         setInfo(data)
         setStage('ready')
       })
-      .catch(() => {
-        setStudentId(null)
-        setStage('noStudent')
+      .catch((err) => {
+        // Só "esquece" a aluna se o servidor disser que ela não existe ou que o link é inválido.
+        // Qualquer outro erro (servidor fora, banco sem conexão) aparece na tela pra dar pra investigar.
+        if (err.message === 'Aluna não encontrada' || err.message === 'Link inválido') {
+          setStudentId(null)
+          setStage('noStudent')
+        } else {
+          setError(err.message)
+          setStage('loadError')
+        }
       })
   }, [studentId])
 
@@ -68,6 +75,19 @@ export default function Practice() {
     return (
       <main className="page narrow">
         <div className="spinner" />
+      </main>
+    )
+  }
+
+  if (stage === 'loadError') {
+    return (
+      <main className="page narrow">
+        <Link to="/aluno" className="backLink">← Voltar</Link>
+        <div className="card center">
+          <h2>Não consegui abrir o Practice 😕</h2>
+          <p className="muted">{error}</p>
+          <button className="button primary" onClick={() => window.location.reload()}>Tentar de novo</button>
+        </div>
       </main>
     )
   }
@@ -98,7 +118,7 @@ export default function Practice() {
           <span className="muted small">{index + 1} de {session.exercises.length}</span>
         </div>
         <div className="progressBar"><div style={{ width: `${(index / session.exercises.length) * 100}%` }} /></div>
-        {session.mock && <p className="note small">Modo exemplo: sem chave do Gemini, os exercícios vêm do próprio teste.</p>}
+        {session.mock && <p className="note small">Modo exemplo: sem chave de IA configurada, os exercícios vêm do próprio teste.</p>}
         <ExerciseCard
           key={index}
           exercise={exercise}

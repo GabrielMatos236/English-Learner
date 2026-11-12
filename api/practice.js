@@ -53,11 +53,11 @@ export default async function handler(req, res) {
     try {
       generated = await generateExercises({ topics, levelLabel: level.label, isPreview })
     } catch (error) {
-      console.error('[practice] falha no Gemini:', error)
-      const quotaHit = error.status === 429
+      console.error('[practice] falha na IA:', error)
+      const busy = error.status === 429 || error.status === 503 || error.status === 529
       return res.status(502).json({
-        error: quotaHit
-          ? 'A IA atingiu o limite de uso por agora. Tenta de novo daqui a pouco.'
+        error: busy
+          ? 'A IA está sobrecarregada agora. Tenta de novo em alguns minutos.'
           : 'A IA não conseguiu gerar os exercícios. Tenta de novo.',
       })
     }
@@ -73,6 +73,7 @@ export default async function handler(req, res) {
     })
   } catch (error) {
     console.error(error)
+    if (error.expose) return res.status(503).json({ error: error.message })
     return res.status(500).json({ error: 'Erro interno' })
   }
 }

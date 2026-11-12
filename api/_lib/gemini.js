@@ -1,17 +1,21 @@
-// Geração de exercícios com o Gemini (Google AI Studio).
+// Geração de exercícios com IA: Claude (principal, centavos) e Gemini (grátis) como reserva.
 //
-// - Pedimos a resposta em JSON com um schema fixo (responseSchema), assim a IA não devolve texto solto.
+// - Pedimos a resposta em JSON com um schema fixo, assim a IA não devolve texto solto.
 // - Mesmo assim, validamos tudo antes de mandar pro front: IA às vezes repete opção, erra o índice etc.
-// - Sem GEMINI_API_KEY (ex.: rodando local), usamos exercícios de exemplo tirados do próprio currículo.
-// - Nenhum dado pessoal vai pro Gemini: só os tópicos e o nível.
+// - Ordem dos provedores: AI_PROVIDERS (padrão "claude,gemini"). Só entra quem tem chave configurada.
+//   Se um falhar (ex.: créditos do Claude acabaram), passa pro próximo: Claude → Gemini 3.8 → Gemini 3.6.
+// - Sem nenhuma chave (ex.: rodando local), usamos exercícios de exemplo tirados do próprio currículo.
+// - Nenhum dado pessoal vai pra IA: só os tópicos e o nível.
 
 import { getInstruction } from '../../src/data/curriculum.js'
+import { callClaude } from './claude.js'
 
-const DEFAULT_MODEL = 'gemini-2.5-flash'
-const EXERCISE_COUNT = 5
+const DEFAULT_MODEL = 'gemini-3.8-flash'
+const DEFAULT_FALLBACK_MODELS = 'gemini-3.6-flash'
+export const EXERCISE_COUNT = 5
 const REQUEST_TIMEOUT_MS = 30000
 
-function buildPrompt(topics, levelLabel, isPreview) {
+export function buildPrompt(topics, levelLabel, isPreview) {
   const topicList = topics
     .map((topic) => {
       const kind = topic.kind === 'reading' ? ' (leitura: inclua um texto curto de 2 a 4 frases em "context")' : ''
@@ -99,20 +103,23 @@ function mockExercises(topics) {
       question: question.prompt,
       options: question.options,
       correctOption: question.options[0],
-      explanation: `Exercício de exemplo (${getInstruction(topic)}). Configure GEMINI_API_KEY para gerar exercícios novos com IA.`,
+      explanation: `Exercício de exemplo (${getInstruction(topic)}). Configure ANTHROPIC_API_KEY ou GEMINI_API_KEY para gerar exercícios novos com IA.`,
     }))
   )
   return exercises.slice(0, EXERCISE_COUNT)
 }
 
-export async function generateExercises({ topics, levelLabel, isPreview }) {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) return { exercises: mockExercises(topics), mock: true }
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL
-  const topicIds = topics.map((topic) => topic.id)
-  const { systemInstruction, userPrompt } = buildPrompt(topics, levelLabel, isPreview)
+// Erros que valem tentar de novo / trocar de modelo:
+// 503 = modelo lotado, 429 = cota, 404 = modelo não disponível pra essa conta, 500/529 = falha temporária.
+const RETRYABLE_STATUSES = new Set([404, 429, 500, 503, 529])
 
+export function isRetryable(error) {
+  return RETRYABLE_STATUSES.has(error.status) || error.name === 'AbortError' || error instanceof SyntaxError
+}
+
+async function callGemini({ apiKey, model, systemInstruction, userPrompt, topicIds }) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
@@ -137,7 +144,7 @@ export async function generateExercises({ topics, levelLabel, isPreview }) {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
-      const error = new Error(`Gemini respondeu ${response.status}: ${errorText.slice(0, 300)}`)
+      const error = new Error(`Gemini (${model}) respondeu ${response.status}: ${errorText.slice(0, 300)}`)
       error.status = response.status
       throw error
     }
@@ -148,9 +155,70 @@ export async function generateExercises({ topics, levelLabel, isPreview }) {
       .map((part) => part.text)
       .join('')
 
-    const parsed = JSON.parse(text)
-    return { exercises: sanitizeExercises(parsed.exercises, topicIds), mock: false }
+    return sanitizeExercises(JSON.parse(text).exercises, topicIds)
   } finally {
     clearTimeout(timeout)
   }
+}
+
+async function generateWithGemini({ systemInstruction, userPrompt, topicIds }) {
+  const apiKey = process.env.GEMINI_API_KEY
+  const models = [
+    process.env.GEMINI_MODEL || DEFAULT_MODEL,
+    ...(process.env.GEMINI_FALLBACK_MODELS || DEFAULT_FALLBACK_MODELS).split(','),
+  ]
+    .map((model) => model.trim())
+    .filter((model, index, list) => model && list.indexOf(model) === index)
+
+  let lastError
+  for (const model of models) {
+    // Até 2 tentativas por modelo (a 2ª depois de 1,5s), menos quando o modelo nem existe (404).
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const exercises = await callGemini({ apiKey, model, systemInstruction, userPrompt, topicIds })
+        return { exercises, model }
+      } catch (error) {
+        lastError = error
+        console.warn(`[gemini] ${model}, tentativa ${attempt}: ${error.message.slice(0, 200)}`)
+        if (!isRetryable(error)) throw error
+        if (error.status === 404) break
+        if (attempt === 1) await wait(1500)
+      }
+    }
+  }
+  throw lastError
+}
+
+const providers = {
+  gemini: { hasKey: () => Boolean(process.env.GEMINI_API_KEY), generate: generateWithGemini },
+  claude: { hasKey: () => Boolean(process.env.ANTHROPIC_API_KEY), generate: callClaude },
+}
+
+export function getActiveProviders() {
+  return (process.env.AI_PROVIDERS || 'claude,gemini')
+    .split(',')
+    .map((name) => name.trim().toLowerCase())
+    .filter((name, index, list) => providers[name]?.hasKey() && list.indexOf(name) === index)
+}
+
+export async function generateExercises({ topics, levelLabel, isPreview }) {
+  const activeProviders = getActiveProviders()
+  if (activeProviders.length === 0) return { exercises: mockExercises(topics), mock: true }
+
+  const topicIds = topics.map((topic) => topic.id)
+  const { systemInstruction, userPrompt } = buildPrompt(topics, levelLabel, isPreview)
+  let lastError
+
+  for (const name of activeProviders) {
+    try {
+      const { exercises, model } = await providers[name].generate({ systemInstruction, userPrompt, topicIds })
+      if (exercises.length < 2) throw Object.assign(new Error(`${name} devolveu exercícios inválidos`), { status: 500 })
+      console.info(`[ai] exercícios gerados por ${name} (${model})`)
+      return { exercises, mock: false, provider: name, model }
+    } catch (error) {
+      lastError = error
+      console.warn(`[ai] ${name} falhou: ${error.message.slice(0, 200)}`)
+    }
+  }
+  throw lastError
 }

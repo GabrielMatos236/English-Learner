@@ -109,17 +109,19 @@ src/
 
 Se ela ainda não sabe nada, a rodada é uma prévia do primeiro tópico da trilha.
 
-**Geração** (`api/practice.js` + `api/_lib/gemini.js`):
-- O servidor pede 5 exercícios ao Gemini em JSON com schema fixo e valida tudo antes de mandar pra tela: 4 opções diferentes, índice válido etc.
-- Só os tópicos e o nível vão pro Gemini. O nome dela não vai, porque no plano grátis o Google pode usar os dados enviados.
+**Geração** (`api/practice.js` + `api/_lib/gemini.js` + `api/_lib/claude.js`):
+- O servidor pede 5 exercícios à IA em JSON com schema fixo e valida tudo antes de mandar pra tela: 4 opções diferentes, índice válido etc.
+- Ordem: **Claude Haiku 5.5 → Gemini 3.8 Flash → Gemini 3.6 Flash** (configurável em `AI_PROVIDERS`, `GEMINI_MODEL` e `GEMINI_FALLBACK_MODELS`). Se um falhar (créditos acabaram, modelo lotado, fora do ar), passa pro próximo sozinho.
+- Só os tópicos e o nível vão pra IA. O nome dela não vai.
 - Tem um intervalo de 20s entre gerações, pra ninguém torrar a cota.
 - Sem `GEMINI_API_KEY`, o Practice roda em **modo exemplo**, com as questões do próprio teste. É útil pra desenvolver.
 
 **Avisos de erro:** o botão "⚑ Acho que essa tá errada" salva o exercício no registro dela e aparece no seu painel (⚑ na lista de resultados).
 
 **Configurando:**
-1. Gera a chave em [aistudio.google.com](https://aistudio.google.com) → *Get API key*.
-2. Na Vercel, adiciona `GEMINI_API_KEY` (e, se quiser, `GEMINI_MODEL`) nas Environment Variables e faz um redeploy.
+1. Claude: chave em [platform.claude.com](https://platform.claude.com) → *API Keys* (põe um limite de gasto em *Limits*). Na Vercel: `ANTHROPIC_API_KEY`.
+2. Gemini: chave em [aistudio.google.com](https://aistudio.google.com) → *Get API key*. Na Vercel: `GEMINI_API_KEY`.
+3. Redeploy e confere em `/api/health` (campo `aiOrder`).
 
 ### Rotas
 | Rota | O que é |
@@ -136,3 +138,4 @@ Se ela ainda não sabe nada, a rodada é uma prévia do primeiro tópico da tril
 | `GET / PATCH / DELETE /api/results` | professor (PATCH: `taughtTopics`, `clearFlags`) |
 | `GET / POST /api/practice` | com o id da aluna |
 | `POST /api/flags` | com o id da aluna |
+| `GET /api/health` | público (diagnóstico da configuração, sem segredos) |
