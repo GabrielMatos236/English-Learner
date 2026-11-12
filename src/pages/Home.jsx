@@ -11,12 +11,12 @@ export default function Home() {
 
       <div className="entryGrid">
         <Link to="/aluno" className="entryCard">
-          <span className="entryIcon">✏️</span>
+          <span className="entryIcon"></span>
           <strong>Sou aluno(a)</strong>
           <span className="muted">Fazer o teste ou praticar</span>
         </Link>
         <Link to="/professor" className="entryCard">
-          <span className="entryIcon">🔒</span>
+          <span className="entryIcon"></span>
           <strong>Área do professor</strong>
           <span className="muted">Acesso Proibido em Bragança</span>
         </Link>
