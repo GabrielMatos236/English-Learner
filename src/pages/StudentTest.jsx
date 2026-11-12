@@ -76,12 +76,12 @@ export default function StudentTest() {
       <main className="page narrow">
         <Link to="/" className="backLink">← Voltar</Link>
         <div className="card">
-          <h1>Antes de começar 👋</h1>
+          <h1>Antes de começar 🛑</h1>
           <ul className="tipList">
-            <li>O teste se adapta: fica mais difícil conforme você acerta, e termina sozinho quando encontrar o seu nível.</li>
-            <li><strong>Não chute!</strong> Se não souber, clique em <em>“Não sei”</em>. Chutar só bagunça o resultado e deixa as aulas menos certeiras.</li>
-            <li>Sem dicionário nem tradutor. Ninguém espera que você acerte tudo.</li>
-            <li>O resultado vai direto pro seu professor.</li>
+            <li>O teste vai se adaptar. Quanto melhor você for, mais difícil fica.</li>
+            <li><strong>Não chuta!</strong> Se não souber, clique em <em>“Não sei”</em>. Se acertar no chute só me prejudica 😡</li>
+            <li>Sem dicionário nem tradutor. Não precisa acertar tudo.</li>
+            <li>O resultado cai pra mim 👹</li>
           </ul>
 
           <label className="field">
@@ -125,7 +125,7 @@ export default function StudentTest() {
     return (
       <main className="page narrow">
         <div className="card center">
-          <h2>Ops, não consegui enviar 😕</h2>
+          <h2>Ops, não deu pra enviar 😕</h2>
           <p className="muted">Suas respostas estão guardadas. Confere a internet e tenta de novo.</p>
           <button className="button primary" onClick={() => submit(testState)}>Tentar de novo</button>
         </div>
