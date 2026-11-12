@@ -40,4 +40,29 @@ export const api = {
   submitResult: (payload) => request('/api/results', { method: 'POST', body: payload }),
   listResults: () => request('/api/results', { auth: true }),
   deleteResult: (id) => request(`/api/results?id=${encodeURIComponent(id)}`, { method: 'DELETE', auth: true }),
+  updateResult: (id, changes) =>
+    request(`/api/results?id=${encodeURIComponent(id)}`, { method: 'PATCH', body: changes, auth: true }),
+  getPracticeInfo: (studentId) => request(`/api/practice?studentId=${encodeURIComponent(studentId)}`),
+  generatePractice: (studentId) => request('/api/practice', { method: 'POST', body: { studentId } }),
+  flagExercise: (studentId, exercise) => request('/api/flags', { method: 'POST', body: { studentId, exercise } }),
+}
+
+// Identidade da aluna neste navegador (o id do resultado do teste dela).
+const STUDENT_ID_KEY = 'studentId'
+
+export function getStudentId() {
+  try {
+    return localStorage.getItem(STUDENT_ID_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setStudentId(id) {
+  try {
+    if (id) localStorage.setItem(STUDENT_ID_KEY, id)
+    else localStorage.removeItem(STUDENT_ID_KEY)
+  } catch {
+    // sem storage: ela vai precisar abrir o link de prática de novo
+  }
 }

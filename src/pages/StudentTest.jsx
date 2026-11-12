@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createTest, getCurrentQuestion, answerQuestion } from '../lib/engine.js'
 import { getInstruction } from '../data/curriculum.js'
-import { api } from '../lib/api.js'
+import { api, setStudentId } from '../lib/api.js'
 
 const PROGRESS_KEY = 'placementProgress'
 
@@ -51,13 +51,14 @@ export default function StudentTest() {
   async function submit(finalState) {
     setStage('sending')
     try {
-      await api.submitResult({
+      const { id } = await api.submitResult({
         name: name.trim(),
         topicStatus: finalState.topicStatus,
         answers: finalState.answers,
         stoppedAtLevel: finalState.stoppedAtLevel,
         startedAt: finalState.startedAt,
       })
+      setStudentId(id)
       saveProgress(null)
       setStage('done')
     } catch {
@@ -74,7 +75,7 @@ export default function StudentTest() {
   if (stage === 'intro') {
     return (
       <main className="page narrow">
-        <Link to="/" className="backLink">← Voltar</Link>
+        <Link to="/aluno" className="backLink">← Voltar</Link>
         <div className="card">
           <h1>Antes de começar 🛑</h1>
           <ul className="tipList">
@@ -140,7 +141,7 @@ export default function StudentTest() {
           <div className="bigEmoji">🎉</div>
           <h2>Pronto, {name.trim().split(' ')[0]}!</h2>
           <p className="muted">Seu resultado já foi enviado. Agora é só esperar a primeira aula. 😉</p>
-          <Link to="/" className="button secondary">Voltar ao início</Link>
+          <Link to="/pratica" className="button primary">Ir pro Practice 🏋️</Link>
         </div>
       </main>
     )

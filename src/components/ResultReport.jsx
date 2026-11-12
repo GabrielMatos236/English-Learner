@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { buildReport, statusLabels } from '../lib/report.js'
+import { topicById } from '../data/curriculum.js'
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long', timeStyle: 'short' })
 
@@ -10,8 +11,32 @@ function formatDuration(startedAt, finishedAt) {
   return minutes < 1 ? 'menos de 1 min' : `${minutes} min`
 }
 
-export default function ResultReport({ result, onBack, onDelete }) {
+export default function ResultReport({ result, onBack, onDelete, onUpdate }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const taughtTopics = result.taughtTopics ?? []
+  const flags = result.flags ?? []
+  const practiceLink = `${window.location.origin}/pratica/${result.id}`
+
+  // Marca/desmarca "dei aula". A ordem importa: as últimas marcadas são as que o Practice prioriza.
+  function toggleTaught(topicId) {
+    const next = taughtTopics.includes(topicId)
+      ? taughtTopics.filter((id) => id !== topicId)
+      : [...taughtTopics, topicId]
+    onUpdate({ taughtTopics: next })
+  }
+
+  async function copyPracticeLink() {
+    try {
+      await navigator.clipboard.writeText(practiceLink)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      window.prompt('Copia o link:', practiceLink)
+    }
+  }
+
+  const pathItemProps = { taughtTopics, onToggle: toggleTaught }
   const report = buildReport(result)
   const duration = formatDuration(result.startedAt, result.finishedAt)
   const reviews = report.path.filter((item) => item.type === 'review')
@@ -38,6 +63,19 @@ export default function ResultReport({ result, onBack, onDelete }) {
         </div>
       </div>
 
+      <div className="card practiceLinkCard">
+        <div>
+          <h2>🏋️ Link do Practice</h2>
+          <p className="muted small">
+            Se ela fizer o teste e o Practice no mesmo aparelho, já funciona sozinho. Em outro celular ou computador, manda este link.
+          </p>
+        </div>
+        <div className="linkRow">
+          <code>{practiceLink}</code>
+          <button className="button secondary small" onClick={copyPracticeLink}>{copied ? 'Copiado ✓' : 'Copiar'}</button>
+        </div>
+      </div>
+
       {result.stoppedAtLevel && (
         <p className="note">
           O teste parou no <strong>{result.stoppedAtLevel}</strong> porque metade ou mais desse nível ficou fraco.
@@ -48,6 +86,7 @@ export default function ResultReport({ result, onBack, onDelete }) {
       <div className="reportGrid">
         <div className="card">
           <h2>🧭 Trilha sugerida</h2>
+          <p className="muted small">Marca o que você já deu em aula: isso entra no Practice dela, com prioridade pras últimas marcadas.</p>
           {report.path.length === 0 && <p className="muted">Ela dominou tudo que o teste cobre. 🎉</p>}
 
           {reviews.length > 0 && (
@@ -55,7 +94,7 @@ export default function ResultReport({ result, onBack, onDelete }) {
               <h3 className="pathSection">Revisões rápidas</h3>
               <p className="muted small">Ela já viu esses tópicos, mas ainda oscila. Dá pra revisar em poucos minutos dentro de outras aulas.</p>
               <ol className="pathList">
-                {reviews.map((item) => <PathItem key={item.topicId} item={item} />)}
+                {reviews.map((item) => <PathItem key={item.topicId} item={item} {...pathItemProps} />)}
               </ol>
             </>
           )}
@@ -64,7 +103,7 @@ export default function ResultReport({ result, onBack, onDelete }) {
             <>
               <h3 className="pathSection">Aulas, nesta ordem</h3>
               <ol className="pathList">
-                {lessons.map((item) => <PathItem key={item.topicId} item={item} />)}
+                {lessons.map((item) => <PathItem key={item.topicId} item={item} {...pathItemProps} />)}
               </ol>
             </>
           )}
@@ -74,7 +113,7 @@ export default function ResultReport({ result, onBack, onDelete }) {
               <summary>Depois disso: {untested.length} tópicos ainda não testados</summary>
               <p className="muted small">O teste parou antes deles. Seguem a mesma ordem, mas vale sondar rapidinho em aula antes de ensinar do zero.</p>
               <ol className="pathList" start={lessons.length + 1}>
-                {untested.map((item) => <PathItem key={item.topicId} item={item} />)}
+                {untested.map((item) => <PathItem key={item.topicId} item={item} {...pathItemProps} />)}
               </ol>
             </details>
           )}
@@ -95,6 +134,7 @@ export default function ResultReport({ result, onBack, onDelete }) {
                   <li key={topic.id} className={`status-${topic.status}`}>
                     <span>{statusLabels[topic.status].icon}</span>
                     {topic.name}
+                    {taughtTopics.includes(topic.id) && <span className="tag" title="Você já deu essa aula">📘 aula dada</span>}
                   </li>
                 ))}
               </ul>
@@ -102,6 +142,27 @@ export default function ResultReport({ result, onBack, onDelete }) {
           ))}
         </div>
       </div>
+
+      {flags.length > 0 && (
+        <div className="card">
+          <div className="cardTitleRow">
+            <h2>⚑ Exercícios que ela achou errados ({flags.length})</h2>
+            <button className="button ghost small" onClick={() => onUpdate({ clearFlags: true })}>Limpar avisos</button>
+          </div>
+          <ul className="mistakeList">
+            {flags.map((flag, index) => (
+              <li key={index}>
+                {flag.context && <blockquote className="passage small" lang="en">{flag.context}</blockquote>}
+                <p lang="en">{flag.question}</p>
+                <p className="small muted">
+                  {topicById[flag.topicId]?.name ?? flag.topicId} · Opções: {flag.options.join(' / ')} · Gabarito da IA:{' '}
+                  <span className="right">{flag.correctOption}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {report.mistakes.length > 0 && (
         <div className="card">
@@ -146,12 +207,18 @@ export default function ResultReport({ result, onBack, onDelete }) {
   )
 }
 
-function PathItem({ item }) {
+function PathItem({ item, taughtTopics, onToggle }) {
+  const taught = taughtTopics.includes(item.topicId)
   return (
-    <li className={item.status === 'untested' ? 'untested' : ''}>
-      <span className="levelTag">{item.levelId}</span>
-      {item.name}
-      {item.status === 'shaky' && item.type === 'lesson' && <span className="tag">instável</span>}
+    <li className={`${item.status === 'untested' ? 'untested' : ''} ${taught ? 'taught' : ''}`}>
+      <label className="pathItemLabel">
+        <input type="checkbox" checked={taught} onChange={() => onToggle(item.topicId)} />
+        <span>
+          <span className="levelTag">{item.levelId}</span>
+          {item.name}
+          {item.status === 'shaky' && item.type === 'lesson' && <span className="tag">instável</span>}
+        </span>
+      </label>
     </li>
   )
 }

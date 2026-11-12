@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import { requireAuth } from './_lib/auth.js'
-import { saveResult, listResults, deleteResult } from './_lib/store.js'
+import { saveResult, listResults, deleteResult, updateResult } from './_lib/store.js'
 
 const validStatuses = new Set(['mastered', 'shaky', 'missing', 'untested'])
 
@@ -44,7 +44,30 @@ export default async function handler(req, res) {
       const result = parseSubmission(req.body)
       if (!result) return res.status(400).json({ error: 'Dados inválidos' })
       await saveResult(result)
-      return res.status(201).json({ ok: true })
+      // O id volta pra aluna: ele vira a "chave" dela pro Practice.
+      return res.status(201).json({ ok: true, id: result.id })
+    }
+
+    // PATCH /api/results?id=… { taughtTopics?: string[], clearFlags?: true } → só o professor
+    if (req.method === 'PATCH') {
+      if (!requireAuth(req, res)) return
+      const id = typeof req.query?.id === 'string' ? req.query.id : ''
+      if (!id) return res.status(400).json({ error: 'Informe o id' })
+
+      const { taughtTopics, clearFlags } = req.body ?? {}
+      if (taughtTopics !== undefined) {
+        const valid = Array.isArray(taughtTopics) && taughtTopics.length <= 100 &&
+          taughtTopics.every((topicId) => typeof topicId === 'string' && topicId.length <= 60)
+        if (!valid) return res.status(400).json({ error: 'taughtTopics inválido' })
+      }
+
+      const updated = await updateResult(id, (record) => {
+        if (taughtTopics !== undefined) record.taughtTopics = [...new Set(taughtTopics)]
+        if (clearFlags === true) record.flags = []
+        return record
+      })
+      if (!updated) return res.status(404).json({ error: 'Resultado não encontrado' })
+      return res.status(200).json(updated)
     }
 
     if (req.method === 'GET') {
@@ -60,7 +83,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true })
     }
 
-    res.setHeader('Allow', 'GET, POST, DELETE')
+    res.setHeader('Allow', 'GET, POST, PATCH, DELETE')
     return res.status(405).json({ error: 'Método não permitido' })
   } catch (error) {
     console.error(error)

@@ -215,3 +215,31 @@ code { background: var(--primary-soft); padding: 0.1rem 0.35rem; border-radius: 
 .mistakeList p { margin: 0; }
 .wrong { color: var(--red); font-weight: 600; }
 .right { color: var(--green); font-weight: 600; }
+
+/* Área do aluno e Practice */
+.hero.compact { margin: 1rem auto 2rem; }
+.topicChips { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: 0.4rem; }
+.topicChips li { background: var(--bg); border-radius: 8px; padding: 0.45rem 0.7rem; font-size: 0.9rem; }
+.option.correct { border-color: var(--green); background: var(--green-soft); }
+.option.incorrect { border-color: var(--red); background: var(--red-soft); }
+.option.dimmed { opacity: 0.55; }
+.option:disabled { cursor: default; }
+.option:disabled:hover { border-color: inherit; }
+.option.correct:disabled:hover { border-color: var(--green); }
+.option.incorrect:disabled:hover { border-color: var(--red); }
+.feedback { margin-top: 1rem; padding: 0.85rem 1rem; border-radius: 10px; }
+.feedback p { margin: 0.35rem 0 0; }
+.feedback.good { background: var(--green-soft); }
+.feedback.bad { background: var(--red-soft); }
+
+/* Painel do professor: extras */
+.practiceLinkCard { display: flex; flex-direction: column; gap: 0.5rem; }
+.practiceLinkCard p { margin: 0; }
+.linkRow { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.linkRow code { flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 0.45rem 0.6rem; }
+.pathItemLabel { display: flex; gap: 0.5rem; align-items: flex-start; cursor: pointer; }
+.pathItemLabel input { margin-top: 0.3rem; accent-color: var(--primary); }
+.pathList li.taught > .pathItemLabel > span { text-decoration: line-through; color: var(--muted); }
+.cardTitleRow { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.rowBadges { display: flex; gap: 0.5rem; align-items: center; }
+.flagPill { background: var(--amber-soft); color: var(--amber); font-weight: 700; font-size: 0.8rem; padding: 0.2rem 0.6rem; border-radius: 999px; }

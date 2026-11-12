@@ -1,4 +1,4 @@
-# Nivelamento de Inglês
+# English Learner
 
 Webapp de teste de nivelamento adaptativo (A1 → B2), com duas entradas:
 
@@ -95,3 +95,44 @@ src/
   pages/TeacherArea.jsx     # login + lista de resultados
   components/ResultReport.jsx
 ```
+
+---
+
+## Practice (exercícios com IA)
+
+**Como a aluna chega no Practice:** quando ela termina o teste, o navegador guarda o id do resultado dela no `localStorage`. Se ela trocar de aparelho, você copia o **link do Practice** (`/pratica/<id>`) no painel e manda pra ela. O id é um UUID impossível de adivinhar, então o link funciona como a chave dela.
+
+**O que cai no Practice** (`src/lib/learning.js`): ela "já sabe" o que dominou no teste mais o que você marcou como **dei aula** na trilha. Cada rodada sorteia até 3 tópicos, nesta prioridade:
+1. as 2 últimas aulas marcadas;
+2. tópicos instáveis do teste;
+3. o resto do que ela já sabe.
+
+Se ela ainda não sabe nada, a rodada é uma prévia do primeiro tópico da trilha.
+
+**Geração** (`api/practice.js` + `api/_lib/gemini.js`):
+- O servidor pede 5 exercícios ao Gemini em JSON com schema fixo e valida tudo antes de mandar pra tela: 4 opções diferentes, índice válido etc.
+- Só os tópicos e o nível vão pro Gemini. O nome dela não vai, porque no plano grátis o Google pode usar os dados enviados.
+- Tem um intervalo de 20s entre gerações, pra ninguém torrar a cota.
+- Sem `GEMINI_API_KEY`, o Practice roda em **modo exemplo**, com as questões do próprio teste. É útil pra desenvolver.
+
+**Avisos de erro:** o botão "⚑ Acho que essa tá errada" salva o exercício no registro dela e aparece no seu painel (⚑ na lista de resultados).
+
+**Configurando:**
+1. Gera a chave em [aistudio.google.com](https://aistudio.google.com) → *Get API key*.
+2. Na Vercel, adiciona `GEMINI_API_KEY` (e, se quiser, `GEMINI_MODEL`) nas Environment Variables e faz um redeploy.
+
+### Rotas
+| Rota | O que é |
+|---|---|
+| `/` | Home (English Learner) |
+| `/aluno` | Escolha entre Test your Knowledge e Practice |
+| `/teste` | Teste de nivelamento |
+| `/pratica` (e `/pratica/:id`) | Practice |
+| `/professor` | Painel com senha |
+
+| API | Acesso |
+|---|---|
+| `POST /api/results` | público (envio do teste, devolve o id) |
+| `GET / PATCH / DELETE /api/results` | professor (PATCH: `taughtTopics`, `clearFlags`) |
+| `GET / POST /api/practice` | com o id da aluna |
+| `POST /api/flags` | com o id da aluna |

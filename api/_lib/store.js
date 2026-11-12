@@ -47,3 +47,35 @@ export async function deleteResult(id) {
   await redis.del(`result:${id}`)
   await redis.zrem('results', id)
 }
+
+export async function getResult(id) {
+  if (!redis) return memoryStore.get(id) ?? null
+  return (await redis.get(`result:${id}`)) ?? null
+}
+
+// Lê, aplica a função de atualização e grava de volta. Devolve o registro novo (ou null se não existe).
+// Não é transacional, mas pra um professor e poucas alunas não tem disputa real.
+export async function updateResult(id, updater) {
+  const current = await getResult(id)
+  if (!current) return null
+  const updated = updater(structuredClone(current))
+  if (!redis) memoryStore.set(id, updated)
+  else await redis.set(`result:${id}`, updated)
+  return updated
+}
+
+// Trava simples por tempo: devolve true se conseguiu (não havia trava ativa), false se ainda está esperando.
+// Usada pra não deixarem a cota do Gemini acabar apertando o botão sem parar.
+const memoryCooldowns = globalThis.__placementCooldowns ?? new Map()
+globalThis.__placementCooldowns = memoryCooldowns
+
+export async function acquireCooldown(key, seconds) {
+  if (!redis) {
+    const until = memoryCooldowns.get(key) ?? 0
+    if (until > Date.now()) return false
+    memoryCooldowns.set(key, Date.now() + seconds * 1000)
+    return true
+  }
+  const result = await redis.set(`cooldown:${key}`, 1, { nx: true, ex: seconds })
+  return result === 'OK'
+}

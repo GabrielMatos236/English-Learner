@@ -97,6 +97,28 @@ function Dashboard({ onLogout }) {
     }
   }
 
+  async function handleUpdate(id, changes) {
+    const previous = results
+    // Atualização otimista: a tela muda na hora e só volta atrás se o servidor recusar.
+    setResults((current) =>
+      current.map((result) => {
+        if (result.id !== id) return result
+        const optimistic = { ...result }
+        if (changes.taughtTopics) optimistic.taughtTopics = changes.taughtTopics
+        if (changes.clearFlags) optimistic.flags = []
+        return optimistic
+      })
+    )
+    try {
+      const updated = await api.updateResult(id, changes)
+      setResults((current) => current.map((result) => (result.id === id ? updated : result)))
+    } catch (err) {
+      setResults(previous)
+      if (err instanceof UnauthorizedError) onLogout()
+      else setError('Não consegui salvar a alteração.')
+    }
+  }
+
   const selectedResult = results?.find((result) => result.id === selectedId)
 
   return (
@@ -116,6 +138,7 @@ function Dashboard({ onLogout }) {
           result={selectedResult}
           onBack={() => setSelectedId(null)}
           onDelete={() => handleDelete(selectedResult.id)}
+          onUpdate={(changes) => handleUpdate(selectedResult.id, changes)}
         />
       ) : (
         <section>
@@ -135,7 +158,10 @@ function Dashboard({ onLogout }) {
                     <strong>{result.name}</strong>
                     <span className="muted small">{dateFormatter.format(new Date(result.finishedAt))}</span>
                   </div>
-                  <span className="levelPill">{level.label}</span>
+                  <span className="rowBadges">
+                    {result.flags?.length > 0 && <span className="flagPill">⚑ {result.flags.length}</span>}
+                    <span className="levelPill">{level.label}</span>
+                  </span>
                 </button>
               )
             })}
